@@ -3,10 +3,25 @@
     <h1>Options Profit Calculator</h1>
 
     <!-- Chart -->
-    <svg :width="width" :height="height">
-      <g class="themoney"></g>
+    <svg :width="width" :height="height" xmlns="http://www.w3.org/2000/svg">
+      <!-- labels -->
+      <g class="background">
+        <text :x="this.margin/2" :y="this.y(this.max/2)" font-size="12" text-anchor="middle">
+            profit
+        </text>
+        <text :x="this.margin/2" :y="this.y(-this.max/2)" font-size="12" text-anchor="middle">
+            loss
+        </text>
+        <text :x="this.y(this.max/2)" :y="this.margin/2" font-size="12" text-anchor="middle">
+            below strike
+        </text>
+        <text :x="this.y(-this.max/2)" :y="this.margin/2" font-size="12" text-anchor="middle">
+            above strike
+        </text>
+      </g>
       <g class="contracts">
         <!-- Contract plots added here -->
+        
       </g>
       <g class="price-axis">
         <!-- Vertical rules and labels added here -->
@@ -17,16 +32,18 @@
     </svg>
 
     <!-- Legend -->
-    <div v-for="(option, index) in optionsData" 
-        :style="{color:legend(index)}"
-        :key="index" >
-      {{ index+1 }})
-      {{ option.long_short }} 
-      {{ option.type }}
-      strike:{{ option.strike_price }}
-      bid:{{ option.bid }}
-      ask:{{ option.ask }}
-      expires: {{ option.expiration_date }}
+    <div class="legend">
+      <div v-for="(option, index) in optionsData" 
+          :style="{color:legend(index)}"
+          :key="index" >
+        {{ index+1 }})
+        {{ option.long_short }} 
+        {{ option.type }}
+        strike:{{ option.strike_price }}
+        bid:{{ option.bid }}
+        ask:{{ option.ask }}
+        expires: {{ option.expiration_date }}
+      </div>
     </div>
     <!-- TODO would have more design freedom is we broke the legend out into it's own component -->
 
@@ -88,7 +105,7 @@ export default {
     // generator for a price axis
     xAxis: function() {
       let w = this.width-(2*this.margin)
-      return d3.axisTop(this.x)
+      return d3.axisBottom(this.x)
           .tickSizeInner(w)
           .tickSizeOuter(w)
           .ticks(5, "$.2f");
@@ -97,7 +114,7 @@ export default {
     // generator for a profit axis
     yAxis: function() {
       let h = this.width-(2*this.margin);
-      return d3.axisLeft(this.y)
+      return d3.axisRight(this.y)
           .tickSizeInner(h)
           .tickSizeOuter(h)
           .ticks(5, "$.2f");
@@ -135,15 +152,15 @@ export default {
     render: function() {
       // TODO might want to override the Vue render function with something like this, but I am unsure of the implications...
       this.svg.select('g.price-axis')
-        .attr('transform', `translate(0, ${this.height-this.margin})`)
+        .attr('transform', `translate(0, ${this.margin})`)
         .call(this.xAxis);
       this.svg.select('g.profit-axis')
-        .attr('transform', `translate(${this.height-this.margin}, 0)`)
+        .attr('transform', `translate(${this.margin}, 0)`)
         .call(this.yAxis);
       
-      let otm = this.svg.select('g.themoney > rect');
+      let otm = this.svg.select('g.background > rect');
       if (otm.size()==0)
-        otm = this.svg.select('g.themoney').append('rect');
+        otm = this.svg.select('g.background').append('rect');
 
       otm.style('fill', 'lightgrey')
           .attr('x', this.x(-this.max))
@@ -160,7 +177,7 @@ export default {
                 .attr('d', (d) => this.line(d.range))
                 .attr("fill", (d,i) => {
                   let c = d3.color(this.legend(i));
-                  c.opacity = 0.5;
+                  c.opacity = 0.6;
                   return c;
                 })
                 .attr("stroke", "none");
@@ -174,7 +191,7 @@ export default {
             update.attr('d', (d) => this.line(d.range))
                 .attr("fill", (d,i) => {
                   let c = d3.color(this.legend(i));
-                  c.opacity = 0.5;
+                  c.opacity = 0.6;
                   return c;
                 });
               // update.attr('d', (d)=>this.line(d.midLine));
@@ -197,5 +214,7 @@ export default {
 
 /* I'd like the legend expressed as styles, but it conflicts a bit with D3 idioms...
    maybe I could set 10 CSS vars on mount using a D3 chromatic scale? */
-
+/* div.legend {
+  text-align: left;
+} */
 </style>
