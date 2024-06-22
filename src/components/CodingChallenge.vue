@@ -7,17 +7,19 @@
       <!-- labels -->
       <g class="background">
         <text :x="this.margin/2" :y="this.y(this.max/2)" font-size="12" text-anchor="middle">
-            profit
+            Profit
         </text>
         <text :x="this.margin/2" :y="this.y(-this.max/2)" font-size="12" text-anchor="middle">
-            loss
+            Loss
         </text>
         <text :x="this.y(this.max/2)" :y="this.margin/2" font-size="12" text-anchor="middle">
-            below strike
+            Below Strike
         </text>
         <text :x="this.y(-this.max/2)" :y="this.margin/2" font-size="12" text-anchor="middle">
-            above strike
+            Above Strike
         </text>
+        <line class="price-ruler"></line>
+        <line class="profit-ruler"></line>
       </g>
       <g class="contracts">
         <!-- Contract plots added here -->
@@ -30,7 +32,7 @@
         <!-- Horizontal rules and labels added here -->
       </g>
     </svg>
-
+    <span class=""></span>
     <!-- Legend -->
     <div class="legend">
       <div v-for="(option, index) in optionsData" 
@@ -95,6 +97,10 @@ export default {
       return d3.scaleOrdinal(d3.schemeCategory10);
     },
 
+    format: function() {
+      return d3.format("$.2f");
+    },
+
     // generates lines on the screen from price coordinates
     line: function() {
       return d3.line()
@@ -108,7 +114,7 @@ export default {
       return d3.axisBottom(this.x)
           .tickSizeInner(w)
           .tickSizeOuter(w)
-          .ticks(5, "$.2f");
+          .ticks(5, this.format);
     },
 
     // generator for a profit axis
@@ -117,7 +123,7 @@ export default {
       return d3.axisRight(this.y)
           .tickSizeInner(h)
           .tickSizeOuter(h)
-          .ticks(5, "$.2f");
+          .ticks(5, this.format);
     },
 
     // computes profit areas from the raw contract information
@@ -125,32 +131,43 @@ export default {
       let contracts = [];
       for (let i=0; i<this.optionsData.length; i++) {
         let option = this.optionsData[i];
-        let contract = {};
-        contract.mid = (option.bid + option.ask) / 2;
+        let contract = {option};
         
         // you can express each contract as a horizontal or vertical reflection
         let v = (option.long_short==='long') ? 1 : -1;
         let h = (option.type==='Call') ? 1 : -1;
+        contract.v = v;
+        contract.h = h;
         
-        // TODO add break-even points? line?
-        // let askEven = [h*option.ask,0];
-        // let midEven = [h*option.mid,0];
-        // let bidEven = [h*option.bid,0];
-
         // by convention, I start with the plot of a long call
-        contract.midLine = [[-this.max*h, -contract.mid*v],[0,-contract.mid*v],[this.max*h, (this.max-contract.mid)*v]];
-        contract.range = [[-this.max*h, -option.ask*v],[0,-option.ask*v],[this.max*h, (this.max-option.ask)*v], 
+        contract.plot = [
+            [-this.max*h, -option.ask*v],[0,-option.ask*v],[this.max*h, (this.max-option.ask)*v], 
             [this.max*h, (this.max-option.bid)*v],[0,-option.bid*v],[-this.max*h, -option.bid*v]];
+        
+        // precompute locations and intervals
+        contract.max = [h*option.ask, h*option.bid];
+        contract.anchor = [-h*this.max/2, -v*(option.ask + option.bid)/2];
+
         contracts.push(contract);
       }
       return contracts;
     }
     
   },
+
+  // when the component mounts, render the chart
+  mounted: function () {
+    this.svg = d3.select(this.$el).select('svg');
+    this.render();
+    // TODO need to invoke on component's refresh hook as well...
+  },
+
   methods: {
     // Use D3 to render the chart
     render: function() {
       // TODO might want to override the Vue render function with something like this, but I am unsure of the implications...
+
+      // draw axes in appropriate group
       this.svg.select('g.price-axis')
         .attr('transform', `translate(0, ${this.margin})`)
         .call(this.xAxis);
@@ -158,54 +175,64 @@ export default {
         .attr('transform', `translate(${this.margin}, 0)`)
         .call(this.yAxis);
       
-      let otm = this.svg.select('g.background > rect');
-      if (otm.size()==0)
-        otm = this.svg.select('g.background').append('rect');
-
-      otm.style('fill', 'lightgrey')
+      // shade the area where an option would lose money
+      let out = this.svg.select('g.background > rect');
+      if (out.size()==0)
+        out = this.svg.select('g.background').append('rect');
+      out.style('fill', 'lightgrey')
           .attr('x', this.x(-this.max))
           .attr('y', this.y(0))
           .attr('width', this.x(this.max)-this.x(-this.max))
           .attr('height', this.y(-this.max)-this.y(0));
 
+      // draw/update a plot for each contract
       this.svg.select('g.contracts')
         .selectAll('g')
         .data(this.contracts)
         .join(
           enter => {
             enter.append("path") // should be made with a d3 area generator
-                .attr('d', (d) => this.line(d.range))
+                .attr('d', (d) => this.line(d.plot))
                 .attr("fill", (d,i) => {
                   let c = d3.color(this.legend(i));
                   c.opacity = 0.6;
                   return c;
                 })
-                .attr("stroke", "none");
-            // enter.append('path')
-            //     .attr('d', (d)=>this.line(d.midLine))
-            //     .attr('fill', 'none')
-            //     .attr('stroke', (d,i) => this.legend(i))
-            //     .attr('stroke-width', 3);
+                .attr("stroke", "none")
+                .on('mousemove', e=>{
+                  let d = d3.select(e.target).datum();
+                  this.trace(e, d);
+                });
+            enter.append('text')
+                  .attr('x', d=>this.x(d.anchor[0]))
+                  .attr('y', d=>this.y(d.anchor[1])+3)
+                  .attr('text-anchor', 'middle')
+                  .attr('font-size', 10)
+                  .html(d => 'Breakeven ' + this.format(d.max[1]) + ' to ' + this.format(d.max[0]));
           },
           update => {
-            update.attr('d', (d) => this.line(d.range))
+            update.selectAll('path')
+                .attr('d', (d) => this.line(d.plot))
                 .attr("fill", (d,i) => {
                   let c = d3.color(this.legend(i));
                   c.opacity = 0.6;
                   return c;
                 });
-              // update.attr('d', (d)=>this.line(d.midLine));
+            update.selectAll('text')
+                .attr('x', d=>this.x(d.anchor[0]))
+                .attr('y', d=>this.y(d.anchor[1])+3)
+                .html(d => 'Breakeven ' + this.format(d.max[1]) + ' to ' + this.format(d.max[0]));
           },
           exit => { exit.remove(); }
-
         )
+    },
+    trace(event, contract) {
+      console.log(event, contract);
+      // console.log(event.offsetX, event.offsetY);
+      let price = this.x.invert(event.offsetX);
+      let profit = this.y.invert(event.offsetY);
+      console.log(price, profit);
     }
-  },
-  // when the component mounts, render the chart
-  mounted: function () {
-    this.svg = d3.select(this.$el).select('svg');
-    this.render();
-    // TODO need to invoke on component's refresh hook as well...
   }
 }
 </script>
