@@ -3,7 +3,9 @@
     <h1>Options Profit Calculator</h1>
 
     <!-- Chart -->
-    <svg :width="width" :height="height" xmlns="http://www.w3.org/2000/svg">
+    <svg xmlns="http://www.w3.org/2000/svg"
+        :width="width" :height="height" 
+        v-on:mousemove="trace">
       <!-- labels -->
       <g class="background">
         <text :x="this.margin/2" :y="this.y(this.max/2)" font-size="12" text-anchor="middle">
@@ -18,23 +20,34 @@
         <text :x="this.y(-this.max/2)" :y="this.margin/2" font-size="12" text-anchor="middle">
             Above Strike
         </text>
-        <line class="price-ruler"></line>
-        <line class="profit-ruler"></line>
+        <rect class='losing' fill='lightgrey'
+            :x="this.margin" :y="this.y(0)" 
+            :width="this.width-(this.margin*2)"
+            :height="this.y(-this.max)-this.y(0)">
+        </rect>
+        <rect class='winning' fill='white'
+            :x="this.margin" :y="this.margin" 
+            :width="this.width-(this.margin*2)"
+            :height="this.y(-this.max)-this.y(0)">
+        </rect>
       </g>
+
       <g class="contracts">
         <!-- Contract plots added here -->
-        
       </g>
+
       <g class="price-axis">
         <!-- Vertical rules and labels added here -->
       </g>
+      
       <g class="profit-axis">
         <!-- Horizontal rules and labels added here -->
       </g>
     </svg>
-    <span class=""></span>
+
     <!-- Legend -->
     <div class="legend">
+      <!-- TODO would have more flexibility if I broke the legend out into it's own component -->
       <div v-for="(option, index) in optionsData" 
           :style="{color:legend(index)}"
           :key="index" >
@@ -47,8 +60,10 @@
         expires: {{ option.expiration_date }}
       </div>
     </div>
-    <!-- TODO would have more design freedom is we broke the legend out into it's own component -->
-
+    
+    <div class="coordinate">
+      <!-- mouse coordinates displayed here -->
+    </div>
   </div>
 
 </template>
@@ -97,6 +112,7 @@ export default {
       return d3.scaleOrdinal(d3.schemeCategory10);
     },
 
+    // number formatter for money
     format: function() {
       return d3.format("$.2f");
     },
@@ -126,20 +142,20 @@ export default {
           .ticks(5, this.format);
     },
 
-    // computes profit areas from the raw contract information
+    // computes plots and values from the raw contract information
     contracts: function() {
       let contracts = [];
       for (let i=0; i<this.optionsData.length; i++) {
         let option = this.optionsData[i];
-        let contract = {option};
+        let contract = {option, i};
         
-        // you can express each contract as a horizontal or vertical reflection
+        // you can express each contract as a horizontal or vertical reflection of one graph
         let v = (option.long_short==='long') ? 1 : -1;
         let h = (option.type==='Call') ? 1 : -1;
         contract.v = v;
         contract.h = h;
         
-        // by convention, I start with the plot of a long call
+        // by convention, I start with the plot of a long call option
         contract.plot = [
             [-this.max*h, -option.ask*v],[0,-option.ask*v],[this.max*h, (this.max-option.ask)*v], 
             [this.max*h, (this.max-option.bid)*v],[0,-option.bid*v],[-this.max*h, -option.bid*v]];
@@ -155,11 +171,16 @@ export default {
     
   },
 
-  // when the component mounts, render the chart
   mounted: function () {
+    // select some features of the svg
     this.svg = d3.select(this.$el).select('svg');
+    this.coordinate = d3.select(this.$el).select('div.coordinate');
+    // when the component mounts, render the chart
     this.render();
-    // TODO need to invoke on component's refresh hook as well...
+  },
+
+  updated: function() {
+    this.render();
   },
 
   methods: {
@@ -174,42 +195,36 @@ export default {
       this.svg.select('g.profit-axis')
         .attr('transform', `translate(${this.margin}, 0)`)
         .call(this.yAxis);
-      
-      // shade the area where an option would lose money
-      let out = this.svg.select('g.background > rect');
-      if (out.size()==0)
-        out = this.svg.select('g.background').append('rect');
-      out.style('fill', 'lightgrey')
-          .attr('x', this.x(-this.max))
-          .attr('y', this.y(0))
-          .attr('width', this.x(this.max)-this.x(-this.max))
-          .attr('height', this.y(-this.max)-this.y(0));
 
       // draw/update a plot for each contract
       this.svg.select('g.contracts')
         .selectAll('g')
         .data(this.contracts)
         .join(
+          // append plots for new contracts
           enter => {
-            enter.append("path") // should be made with a d3 area generator
+            enter.append('text')
+                .attr('x', d=>this.x(d.anchor[0]))
+                .attr('y', d=>this.y(d.anchor[1])+3)
+                .attr('text-anchor', 'middle')
+                .attr('font-size', 10)
+                .html(d => 'Breakeven ' + this.format(d.max[1]) + ' to ' + this.format(d.max[0]));
+            enter.append("path") // TODO should be made with a d3 area generator...
                 .attr('d', (d) => this.line(d.plot))
                 .attr("fill", (d,i) => {
                   let c = d3.color(this.legend(i));
                   c.opacity = 0.6;
                   return c;
                 })
-                .attr("stroke", "none")
-                .on('mousemove', e=>{
-                  let d = d3.select(e.target).datum();
-                  this.trace(e, d);
-                });
-            enter.append('text')
-                  .attr('x', d=>this.x(d.anchor[0]))
-                  .attr('y', d=>this.y(d.anchor[1])+3)
-                  .attr('text-anchor', 'middle')
-                  .attr('font-size', 10)
-                  .html(d => 'Breakeven ' + this.format(d.max[1]) + ' to ' + this.format(d.max[0]));
+                .attr("stroke", d=>this.legend(d.i))
+                .on('mouseover', e=>{
+                  // let d = d3.select(e.target).datum(); // note: it is possible to obtain the contract from the plot dom element...
+                  d3.select(e.target).style('stroke-width', 3);
+                })
+                .on('mouseleave', 
+                    e=>d3.select(e.target).style('stroke-width', 1));
           },
+          // update existing plots
           update => {
             update.selectAll('path')
                 .attr('d', (d) => this.line(d.plot))
@@ -223,15 +238,21 @@ export default {
                 .attr('y', d=>this.y(d.anchor[1])+3)
                 .html(d => 'Breakeven ' + this.format(d.max[1]) + ' to ' + this.format(d.max[0]));
           },
+          // and just drop missing plots
           exit => { exit.remove(); }
         )
     },
-    trace(event, contract) {
-      console.log(event, contract);
-      // console.log(event.offsetX, event.offsetY);
-      let price = this.x.invert(event.offsetX);
-      let profit = this.y.invert(event.offsetY);
-      console.log(price, profit);
+
+    // display plot coordinates to user
+    trace(event) {
+      if (event.offsetX < this.margin || event.offsetX > this.width-this.margin
+          || event.offsetY < this.margin || event.offsetY > this.height-this.margin) {
+        this.coordinate.html('');
+      } else {
+        let price = this.x.invert(event.offsetX);
+        let profit = this.y.invert(event.offsetY);
+        this.coordinate.html( this.format(price)+', '+this.format(profit));
+      }
     }
   }
 }
@@ -243,5 +264,11 @@ export default {
    maybe I could set 10 CSS vars on mount using a D3 chromatic scale? */
 /* div.legend {
   text-align: left;
+} */
+
+/* It also appears I can't style SVG elements with vue component styles?  
+  definitely something I need to look into. */
+/* line.price-ruler {
+    stroke-width: 3px;
 } */
 </style>
