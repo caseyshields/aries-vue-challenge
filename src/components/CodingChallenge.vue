@@ -164,7 +164,7 @@ export default {
             [this.max*h, (this.max-option.bid)*v],[0,-option.bid*v],[-this.max*h, -option.bid*v]];
         
         // precompute locations and intervals
-        contract.max = [h*option.ask, h*option.bid];
+        contract.breakeven = [h*option.ask, h*option.bid]; // 
         contract.anchor = [-h*this.max/2, -v*(option.ask + option.bid)/2];
 
         contracts.push(contract);
@@ -211,7 +211,7 @@ export default {
                 .attr('y', d=>this.y(d.anchor[1])+3)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', 10)
-                .html(d => 'Breakeven ' + this.format(d.max[1]) + ' to ' + this.format(d.max[0]));
+                .html(d => 'Breakeven ' + this.format(d.breakeven[1]) + ' to ' + this.format(d.breakeven[0]));
             enter.append("path") // TODO should be made with a d3 area generator...
                 .attr('d', (d) => this.line(d.plot))
                 .attr("fill", (d,i) => {
@@ -239,7 +239,7 @@ export default {
             update.selectAll('text')
                 .attr('x', d=>this.x(d.anchor[0]))
                 .attr('y', d=>this.y(d.anchor[1])+3)
-                .html(d => 'Breakeven ' + this.format(d.max[1]) + ' to ' + this.format(d.max[0]));
+                .html(d => 'Breakeven ' + this.format(d.breakeven[1]) + ' to ' + this.format(d.breakeven[0]));
           },
           // and just drop missing plots
           exit => { exit.remove(); }
