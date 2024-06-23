@@ -30,6 +30,9 @@
             :width="this.width-(this.margin*2)"
             :height="this.y(-this.max)-this.y(0)">
         </rect>
+        <text class='coordinate' font-size="12" text-anchor="middle"
+            :x="this.width-this.margin" :y="this.height-(this.margin/2)" >
+        </text>
       </g>
 
       <g class="contracts">
@@ -59,10 +62,6 @@
         ask:{{ option.ask }}
         expires: {{ option.expiration_date }}
       </div>
-    </div>
-    
-    <div class="coordinate">
-      <!-- mouse coordinates displayed here -->
     </div>
   </div>
 
@@ -174,7 +173,7 @@ export default {
   mounted: function () {
     // select some features of the svg
     this.svg = d3.select(this.$el).select('svg');
-    this.coordinate = d3.select(this.$el).select('div.coordinate');
+    this.coordinate = this.svg.select('text.coordinate');
     // when the component mounts, render the chart
     this.render();
   },
