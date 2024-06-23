@@ -6,18 +6,23 @@
     <svg xmlns="http://www.w3.org/2000/svg"
         :width="width" :height="height" 
         v-on:mousemove="trace">
+        
       <!-- labels -->
       <g class="background">
-        <text :x="this.margin/2" :y="this.y(this.max/2)" font-size="12" text-anchor="middle">
+        <text font-size="12" text-anchor="middle"
+            :x="this.margin/2" :y="this.y(this.max/2)">
             Profit
         </text>
-        <text :x="this.margin/2" :y="this.y(-this.max/2)" font-size="12" text-anchor="middle">
+        <text font-size="12" text-anchor="middle"
+            :x="this.margin/2" :y="this.y(-this.max/2)">
             Loss
         </text>
-        <text :x="this.y(this.max/2)" :y="this.margin/2" font-size="12" text-anchor="middle">
+        <text font-size="12" text-anchor="middle"
+            :x="this.y(this.max/2)" :y="this.margin/2">
             Below Strike
         </text>
-        <text :x="this.y(-this.max/2)" :y="this.margin/2" font-size="12" text-anchor="middle">
+        <text font-size="12" text-anchor="middle"
+            :x="this.y(-this.max/2)" :y="this.margin/2">
             Above Strike
         </text>
         <rect class='losing' fill='lightgrey'
@@ -64,7 +69,6 @@
       </div>
     </div>
   </div>
-
 </template>
 
 <script>
@@ -170,20 +174,20 @@ export default {
     
   },
 
+  // on mount track some important elements and do the initial render
   mounted: function () {
-    // select some features of the svg
     this.svg = d3.select(this.$el).select('svg');
     this.coordinate = this.svg.select('text.coordinate');
-    // when the component mounts, render the chart
     this.render();
   },
 
+  // re-render the chart when component data changes
   updated: function() {
     this.render();
   },
 
   methods: {
-    // Use D3 to render the chart
+    // Use D3 to render the actual chart
     render: function() {
       // TODO might want to override the Vue render function with something like this, but I am unsure of the implications...
 
@@ -258,16 +262,11 @@ export default {
 </script>
 
 <style scoped>
-
 /* I'd like the legend expressed as styles, but it conflicts a bit with D3 idioms...
    maybe I could set 10 CSS vars on mount using a D3 chromatic scale? */
 /* div.legend {
   text-align: left;
 } */
-
 /* It also appears I can't style SVG elements with vue component styles?  
   definitely something I need to look into. */
-/* line.price-ruler {
-    stroke-width: 3px;
-} */
 </style>
